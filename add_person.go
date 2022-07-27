@@ -1,18 +1,17 @@
 package main
 
 import (
-	// "bufio"
 	"bufio"
 	"fmt"
 	"io"
+
+	pb "elfiyang16/go-protobuf/protoc"
+	"io/ioutil"
+	"log"
+	"os"
 	"strings"
 
-	// "io/ioutil"
-	// "log"
-	// "os"
-	// "strings"
-	pb "elfiyang16/go-protobuf/protoc"
-	// "google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/proto"
 )
 
 func promptForAddress(r io.Reader) (*pb.Person, error) {
@@ -61,11 +60,46 @@ func promptForAddress(r io.Reader) (*pb.Person, error) {
 			fmt.Printf("Unknown phone type %q.  Using default.\n", ptype)
 		}
 
+		// A repeated proto field maps to a slice field in Go.  We can
+		// append to it like any other slice.
 		p.Phones = append(p.Phones, pn)
 	}
-
+	return p, nil
 }
 
+// Main reads the entire address book from a file, adds one person based on
+// user input, then writes it back out to the same file.
 func main() {
+	if len(os.Args) != 2 {
+		log.Fatalf("Usage: %s ADDRESS_BOOK_FILE\n", os.Args[0])
+	}
+	fname := os.Args[1]
+	in, err := ioutil.ReadFile(fname)
+	if err != nil {
+		if os.IsNotExist(err) {
+			fmt.Printf("%s: File not found.  Creating new file.\n", fname)
+		} else {
+			log.Fatalln("Error reading file:", err)
+		}
+	}
+
+	book := &pb.AddressBook{}
+	if err := proto.Unmarshal(in, book); err != nil {
+		log.Fatalln("Failed to parse address book", err)
+	}
+	// Add an address.
+	addr, err := promptForAddress(os.Stdin)
+	if err != nil {
+		log.Fatalln("Err with address", err)
+	}
+	book.People = append(book.People, addr)
+	// Write the new address book back to disk.
+	out, err := proto.Marshal(book)
+	if err != nil {
+		log.Fatalln("Failed to encode address book:", err)
+	}
+	if err := ioutil.WriteFile(fname, out, 0644); err != nil {
+		log.Fatalln("Failed to write address book:", err)
+	}
 
 }
